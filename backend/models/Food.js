@@ -19,6 +19,22 @@ const foodSchema = new mongoose.Schema({
   description: {
     type: String
   },
+  cuisine: {
+    type: String,
+    default: ""
+  },
+  tags: {
+    type: [String],
+    default: []
+  },
+  chefId: {
+    type: String,
+    default: ""
+  },
+  chefName: {
+    type: String,
+    default: ""
+  },
   shopkeeperId: {
     type: String,
     default: ""
@@ -26,6 +42,10 @@ const foodSchema = new mongoose.Schema({
   shopName: {
     type: String,
     default: ""
+  },
+  isTodayMenu: {
+    type: Boolean,
+    default: true
   }
 }, { timestamps: true });
 

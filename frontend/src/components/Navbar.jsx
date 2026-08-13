@@ -34,6 +34,11 @@ const Navbar = () => {
     }
   };
 
+  const clearSearch = () => {
+    setSearchText("");
+    searchInputRef.current?.focus();
+  };
+
   return (
     <div className='navbar'>
       <Link to='/' className='navbar-brand' onClick={() => setMenu("Home")}>
@@ -42,8 +47,8 @@ const Navbar = () => {
 
       <ul className='navbar-menu'>
         <Link to='/' className={menu === "Home" ? "active" : ""} onClick={() => setMenu("Home")}>Home</Link>
-        <a href='#explore-menu' className={menu === "Menu" ? "active" : ""} onClick={() => setMenu("Menu")}>Menu</a>
-        <a href='#app-download' className={menu === "Mobile-app" ? "active" : ""} onClick={() => setMenu("Mobile-app")}>Student App</a>
+        <a href='#today-menu' className={menu === "Menu" ? "active" : ""} onClick={() => setMenu("Menu")}>Today's Menu</a>
+        <a href='#explore-messes' className={menu === "Messes" ? "active" : ""} onClick={() => setMenu("Messes")}>Explore Messes</a>
         <a href='#footer' className={menu === "contact-us" ? "active" : ""} onClick={() => setMenu("contact-us")}>Contact us</a>
       </ul>
 
@@ -58,14 +63,27 @@ const Navbar = () => {
             <img src={assets.search_icon} alt='search' />
           </button>
           {showSearch && (
-            <input
-              ref={searchInputRef}
-              type='text'
-              className='navbar-search-input'
-              placeholder='Search state or dish...'
-              value={searchText}
-              onChange={handleSearchChange}
-            />
+            <div className='navbar-search-field'>
+              <input
+                ref={searchInputRef}
+                type='text'
+                className='navbar-search-input'
+                placeholder='Search any food item...'
+                value={searchText}
+                onChange={handleSearchChange}
+                aria-label='Search food items'
+              />
+              {searchText ? (
+                <button
+                  type='button'
+                  className='navbar-search-clear'
+                  onClick={clearSearch}
+                  aria-label='Clear search'
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
           )}
         </div>
         <Link to='/cart' className='navbar-search-icon' aria-label='Go to cart'>

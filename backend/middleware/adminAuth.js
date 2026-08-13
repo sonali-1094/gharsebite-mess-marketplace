@@ -1,4 +1,5 @@
 import { clerkClient } from "@clerk/express";
+import { getStaffProfile, parseEmailList } from "./roleAuth.js";
 
 export const requireAdmin = async (req, res, next) => {
   try {
@@ -7,26 +8,22 @@ export const requireAdmin = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const user = await clerkClient.users.getUser(userId);
-    const primaryEmailId = user?.primaryEmailAddressId;
-    const primaryEmail = user?.emailAddresses?.find(
-      (emailAddress) => emailAddress.id === primaryEmailId
-    )?.emailAddress;
-
-    const allowedAdminEmails = (process.env.ADMIN_EMAILS || "")
-      .split(",")
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean);
+    const profile = await getStaffProfile(userId);
+    const allowedAdminEmails = parseEmailList(process.env.ADMIN_EMAILS);
+    const allowedChefEmails = [
+      ...parseEmailList(process.env.CHEF_EMAILS),
+      ...parseEmailList(process.env.SHOPKEEPER_EMAILS)
+    ];
+    const allowAllInDev = allowedAdminEmails.length === 0 && allowedChefEmails.length === 0;
 
     // If ADMIN_EMAILS is not configured, allow all signed-in users in dev.
-    if (
-      allowedAdminEmails.length > 0 &&
-      (!primaryEmail || !allowedAdminEmails.includes(primaryEmail.toLowerCase()))
-    ) {
+    if (!allowAllInDev && profile.role !== "admin") {
       return res.status(403).json({ message: "Admin access only" });
     }
 
-    req.adminUser = user;
+    req.adminUser = profile.user || await clerkClient.users.getUser(userId);
+    req.staffRole = "admin";
+    req.staffEmail = profile.email;
     return next();
   } catch (error) {
     return res.status(500).json({ error: error.message });

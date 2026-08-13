@@ -17,7 +17,15 @@ const orderSchema = new mongoose.Schema({
         type: String,
         default: ""
       },
+      chefId: {
+        type: String,
+        default: ""
+      },
       shopName: {
+        type: String,
+        default: ""
+      },
+      chefName: {
         type: String,
         default: ""
       }
@@ -27,20 +35,31 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  messId: { type: String, default: "" },
+  orderType: { type: String, enum: ["PICKUP", "DELIVERY"], default: "DELIVERY" },
+  deliveryCharge: { type: Number, default: 0 },
   address: {
     type: String,
     required: true
   },
   status: {
     type: String,
-    enum: ["Pending", "Accepted", "Preparing", "Out for Delivery", "Delivered", "Cancelled"],
+    enum: ["Pending", "Accepted", "Preparing", "Ready for Pickup", "Out for Delivery", "Delivered", "Completed", "Cancelled", "Rejected"],
     default: "Pending"
   },
   shopkeeperId: {
     type: String,
     default: ""
   },
+  chefId: {
+    type: String,
+    default: ""
+  },
   shopName: {
+    type: String,
+    default: ""
+  },
+  chefName: {
     type: String,
     default: ""
   },

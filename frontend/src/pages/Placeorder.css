@@ -35,6 +35,42 @@
   resize: vertical;
 }
 
+.placeorder__payment {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+
+.placeorder__payment h3 {
+  margin: 4px 0;
+  font-size: 16px;
+}
+
+.placeorder__payment label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #f1c27d;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.placeorder__payment label.selected {
+  border-color: #e85d04;
+  box-shadow: 0 0 0 3px rgba(232, 93, 4, 0.12);
+}
+
+.placeorder__payment span {
+  display: grid;
+  gap: 3px;
+}
+
+.placeorder__payment small {
+  color: #7c5f46;
+}
+
 .placeorder__form button {
   width: 100%;
   border: none;
@@ -56,6 +92,11 @@
   font-size: 14px;
 }
 
+.placeorder__message--success {
+  color: #1f6f3d;
+  font-weight: 600;
+}
+
 .placeorder__items {
   display: flex;
   flex-direction: column;
@@ -70,12 +111,16 @@
 }
 
 .placeorder__total {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid #f1c27d;
+  margin-top: 10px;
   display: flex;
   justify-content: space-between;
   font-size: 16px;
+}
+
+.placeorder__total--payable {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f1c27d;
 }
 
 @media (max-width: 900px) {

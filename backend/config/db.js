@@ -4,6 +4,8 @@ import dns from "node:dns";
 const DNS_RETRY_SERVERS = ["8.8.8.8", "1.1.1.1"];
 const connectOptions = { serverSelectionTimeoutMS: 10000 };
 
+mongoose.set("bufferCommands", false);
+
 const isSrvDnsError = (mongoUri, error) => {
   if (!mongoUri?.startsWith("mongodb+srv://")) return false;
 

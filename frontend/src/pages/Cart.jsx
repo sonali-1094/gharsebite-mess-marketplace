@@ -1,6 +1,7 @@
 import React, { useContext, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { StoreContext } from "../context/StoreContext";
+import { getDeliveryFee, getOrderTotal } from "../config/cart";
 import "./Cart.css";
 
 const Cart = () => {
@@ -25,8 +26,8 @@ const Cart = () => {
   }, [cartItems, food_list]);
 
   const subtotal = getTotalCartAmount();
-  const deliveryFee = subtotal > 0 ? 40 : 0;
-  const total = subtotal + deliveryFee;
+  const deliveryFee = getDeliveryFee(subtotal);
+  const total = getOrderTotal(subtotal);
 
   return (
     <section className="cart-page">

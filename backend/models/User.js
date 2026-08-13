@@ -16,8 +16,13 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["user", "shopkeeper", "admin"],
+    enum: ["user", "shopkeeper", "chef", "admin"],
     default: "user"
+  },
+  approvalStatus: {
+    type: String,
+    enum: ["pending", "approved", "rejected"],
+    default: "pending"
   }
 }, { timestamps: true });
 

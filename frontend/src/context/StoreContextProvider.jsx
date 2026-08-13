@@ -4,13 +4,18 @@ import { food_list } from "../assets/assets";
 
 const StoreContextProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState({});
+  const [foodList, setFoodList] = useState(food_list);
+  const [cartMessId, setCartMessId] = useState("");
   const [searchText, setSearchText] = useState("");
 
-  const addToCart = (itemId) => {
+  const addToCart = (itemId, messId = "") => {
+    if (cartMessId && messId && cartMessId !== messId) return false;
+    if (messId) setCartMessId(messId);
     setCartItems((prev) => ({
       ...prev,
       [itemId]: prev[itemId] ? prev[itemId] + 1 : 1,
     }));
+    return true;
   };
 
   const removeFromCart = (itemId) => {
@@ -24,13 +29,14 @@ const StoreContextProvider = ({ children }) => {
 
   const clearCart = () => {
     setCartItems({});
+    setCartMessId("");
   };
 
   const getTotalCartAmount = () => {
     let total = 0;
 
     Object.entries(cartItems).forEach(([itemId, quantity]) => {
-      const item = food_list.find((food) => food._id === itemId);
+      const item = foodList.find((food) => food._id === itemId);
       if (item) {
         total += item.price * quantity;
       }
@@ -44,7 +50,9 @@ const StoreContextProvider = ({ children }) => {
   };
 
   const contextValue = {
-    food_list,
+    food_list: foodList,
+    setFoodList,
+    cartMessId,
     cartItems,
     searchText,
     setSearchText,

@@ -3,6 +3,8 @@ import crypto from "node:crypto";
 import Razorpay from "razorpay";
 import Order from "../models/Order.js";
 import { requireClerkAuth } from "../middleware/clerkAuth.js";
+import { requireDbConnection } from "../middleware/requireDbConnection.js";
+import { findLocalOrderById } from "../utils/localOrders.js";
 
 const router = express.Router();
 
@@ -41,7 +43,7 @@ const findOrderFromWebhookEntity = async (paymentEntity) => {
   return null;
 };
 
-router.post("/webhook", async (req, res) => {
+router.post("/webhook", requireDbConnection, async (req, res) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     if (!webhookSecret) {
@@ -128,7 +130,7 @@ router.get("/key", (req, res) => {
 });
 
 // Create Razorpay order
-router.post("/create-session", requireClerkAuth, async (req, res) => {
+router.post("/create-session", requireClerkAuth, requireDbConnection, async (req, res) => {
   try {
     const { orderId } = req.body;
     const userId = req.auth?.userId;
@@ -138,6 +140,12 @@ router.post("/create-session", requireClerkAuth, async (req, res) => {
     }
 
     const order = await Order.findById(orderId);
+    if (!order && findLocalOrderById(orderId)) {
+      return res.status(400).json({
+        message: "Razorpay payment needs MongoDB. Use Cash on Delivery while the database is offline."
+      });
+    }
+
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
@@ -185,7 +193,7 @@ router.post("/create-session", requireClerkAuth, async (req, res) => {
 });
 
 // Verify Razorpay payment signature
-router.post("/verify", requireClerkAuth, async (req, res) => {
+router.post("/verify", requireClerkAuth, requireDbConnection, async (req, res) => {
   try {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keySecret) {
@@ -245,7 +253,7 @@ router.post("/verify", requireClerkAuth, async (req, res) => {
 });
 
 // Get payment status for one order
-router.get("/status/:orderId", requireClerkAuth, async (req, res) => {
+router.get("/status/:orderId", requireClerkAuth, requireDbConnection, async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId).select(
       "_id totalAmount paymentStatus paymentMethod paymentId paidAt status"

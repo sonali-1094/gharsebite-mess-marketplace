@@ -4,7 +4,7 @@ Full-stack healthy Indian tiffin and home-food delivery project for hostellers, 
 
 Built with:
 - React + Vite frontend
-- Separate React + Vite admin/shopkeeper app
+- Separate React + Vite admin/chef app
 - Node.js + Express backend
 - MongoDB database
 - Clerk authentication
@@ -31,8 +31,10 @@ GharSeBite/
 
 - Browse food items
 - Add to cart and place orders
-- Separate admin/shopkeeper dashboard
-- Shopkeepers can accept incoming orders and update delivery status
+- Separate admin/chef dashboard
+- Admin can manage chef approvals, monitor orders, and track revenue
+- Chefs can manage food listings and process incoming orders
+- Order lifecycle stages such as preparing and delivered
 - Razorpay checkout flow
 - Payment signature verification
 - Razorpay webhook processing (`payment.captured`, `payment.failed`)
@@ -40,6 +42,16 @@ GharSeBite/
 - Protected user routes (`/cart`, `/order`)
 - Protected admin APIs and admin page
 - Admin access only for configured emails
+
+## Role-Based Architecture
+
+The platform supports three roles: admin, chef, and customer.
+
+- Admin: manages chef approvals, monitors platform orders, and tracks revenue.
+- Chef: manages food listings and moves incoming orders through lifecycle stages such as preparing and delivered.
+- Customer: browses food items, adds items to the cart, places orders, and completes payments.
+
+This role-based architecture keeps responsibilities separated cleanly across the system and makes the platform easier to scale as new operational workflows are added.
 
 ## Prerequisites
 
@@ -106,7 +118,7 @@ cd frontend
 npm run dev
 ```
 
-### Terminal 3 (Admin / Shopkeeper App)
+### Terminal 3 (Admin / Chef App)
 ```bash
 cd admin
 npm run dev

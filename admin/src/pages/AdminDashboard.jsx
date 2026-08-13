@@ -1,84 +1,51 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { API_BASE_URL } from "../config/api.js";
+import EmptyState from "../components/EmptyState.jsx";
+import OrderTable from "../components/OrderTable.jsx";
+import StatusBadge from "../components/StatusBadge.jsx";
+import {
+  createApiClient,
+  getAdminStats,
+  getAllOrders,
+  getChefs,
+  getAdminMesses,
+  getAdminMenus,
+  updateMessStatus,
+  moderateMenu,
+  updateChefApproval,
+  updateOrderStatus
+} from "../services/api.js";
 
-const initialFoodState = {
-  name: "",
-  price: "",
-  category: "",
-  image: "",
-  shopName: "",
-  description: ""
-};
-
-const orderStatuses = ["Pending", "Accepted", "Preparing", "Out for Delivery", "Delivered", "Cancelled"];
-const shopkeeperStatuses = ["Accepted", "Preparing", "Out for Delivery", "Delivered", "Cancelled"];
+const statusOptions = ["all", "Pending", "Accepted", "Preparing", "Out for Delivery", "Delivered", "Cancelled"];
+const paymentOptions = ["all", "Pending", "Processing", "Paid", "Failed"];
 
 const AdminDashboard = () => {
   const { getToken } = useAuth();
-  const [activeTab, setActiveTab] = useState("shopkeeper");
-  const [foods, setFoods] = useState([]);
-  const [adminOrders, setAdminOrders] = useState([]);
-  const [shopkeeperOrders, setShopkeeperOrders] = useState([]);
-  const [foodForm, setFoodForm] = useState(initialFoodState);
+  const api = useMemo(() => createApiClient(getToken), [getToken]);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [stats, setStats] = useState({ totalOrders: 0, totalRevenue: 0, activeChefs: 0 });
+  const [orders, setOrders] = useState([]);
+  const [chefs, setChefs] = useState([]);
+  const [messes, setMesses] = useState([]);
+  const [menus, setMenus] = useState([]);
+  const [filters, setFilters] = useState({ status: "all", paymentStatus: "all" });
   const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const adminCounts = useMemo(() => {
-    return orderStatuses.reduce((counts, status) => {
-      counts[status] = adminOrders.filter((order) => order.status === status).length;
-      return counts;
-    }, {});
-  }, [adminOrders]);
-
-  const apiFetch = async (path, options = {}) => {
-    const token = await getToken();
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(options.headers || {})
-      }
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.message || data.error || "Request failed");
-    }
-    return data;
-  };
-
-  const loadFoods = async () => {
-    const response = await fetch(`${API_BASE_URL}/api/food`);
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to load foods");
-    setFoods(Array.isArray(data) ? data : []);
-  };
-
-  const loadAdminOrders = async () => {
-    const data = await apiFetch("/api/order");
-    setAdminOrders(Array.isArray(data) ? data : []);
-  };
-
-  const loadShopkeeperOrders = async () => {
-    const data = await apiFetch("/api/order/shopkeeper");
-    setShopkeeperOrders(Array.isArray(data) ? data : []);
-  };
-
-  const refresh = async () => {
+  const loadDashboard = async () => {
     setIsLoading(true);
     setMessage("");
     try {
-      await Promise.allSettled([loadFoods(), loadAdminOrders(), loadShopkeeperOrders()]).then((results) => {
-        const errors = results.filter((result) => result.status === "rejected");
-        if (errors.length === results.length) {
-          throw errors[0].reason;
-        }
-        if (errors.length) {
-          setMessage("Some admin data is hidden because your account may only have shopkeeper access.");
-        }
-      });
+      const [statsData, orderData, chefData, messData, menuData] = await Promise.all([
+        getAdminStats(api),
+        getAllOrders(api),
+        getChefs(api), getAdminMesses(api), getAdminMenus(api)
+      ]);
+      setStats(statsData);
+      setOrders(orderData);
+      setChefs(chefData);
+      setMesses(messData);
+      setMenus(menuData);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -87,194 +54,177 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
+    loadDashboard();
+  }, [api]);
 
-  const onFoodFieldChange = (event) => {
-    const { name, value } = event.target;
-    setFoodForm((prev) => ({ ...prev, [name]: value }));
-  };
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const statusMatch = filters.status === "all" || order.status === filters.status;
+      const paymentMatch = filters.paymentStatus === "all" || order.paymentStatus === filters.paymentStatus;
+      return statusMatch && paymentMatch;
+    });
+  }, [orders, filters]);
 
-  const handleAddFood = async (event) => {
-    event.preventDefault();
-    setMessage("");
+  const pendingChefs = chefs.filter((chef) => chef.approvalStatus === "pending").length;
 
+  const handleChefAction = async (chefId, action) => {
     try {
-      await apiFetch("/api/food/add", {
-        method: "POST",
-        body: JSON.stringify({
-          ...foodForm,
-          price: Number(foodForm.price)
-        })
-      });
-      setFoodForm(initialFoodState);
-      setMessage("Food item added to the shop menu.");
-      await loadFoods();
+      await updateChefApproval(api, chefId, action);
+      setMessage(action === "reject" ? "Chef rejected." : "Chef approved.");
+      setChefs(await getChefs(api));
     } catch (error) {
       setMessage(error.message);
     }
   };
 
-  const handleDeleteFood = async (foodId) => {
+  const handleOrderStatus = async (orderId, status) => {
     try {
-      await apiFetch(`/api/food/${foodId}`, { method: "DELETE" });
-      setMessage("Food item deleted.");
-      await loadFoods();
+      await updateOrderStatus(api, orderId, status);
+      setOrders(await getAllOrders(api));
     } catch (error) {
       setMessage(error.message);
     }
   };
 
-  const updateAdminStatus = async (orderId, status) => {
-    try {
-      await apiFetch(`/api/order/${orderId}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status })
-      });
-      await loadAdminOrders();
-      await loadShopkeeperOrders();
-    } catch (error) {
-      setMessage(error.message);
-    }
+  const handleMessStatus = async (mess, status) => {
+    const action = status === "suspended" ? "suspend" : status;
+    if (!window.confirm(`Are you sure you want to ${action} ${mess.name}?`)) return;
+    try { await updateMessStatus(api, mess._id, status); setMesses(await getAdminMesses(api)); setStats(await getAdminStats(api)); }
+    catch (error) { setMessage(error.message); }
   };
 
-  const acceptOrder = async (orderId) => {
-    try {
-      await apiFetch(`/api/order/${orderId}/accept`, {
-        method: "PATCH",
-        body: JSON.stringify({ shopName: foodForm.shopName })
-      });
-      setMessage("Order accepted. You can now prepare and deliver it.");
-      await loadShopkeeperOrders();
-    } catch (error) {
-      setMessage(error.message);
-    }
+  const handleMenuModeration = async (menu) => {
+    const next = !menu.isAvailable;
+    if (!window.confirm(`${next ? "Restore" : "Hide"} this menu from students?`)) return;
+    try { await moderateMenu(api, menu._id, next); setMenus(await getAdminMenus(api)); }
+    catch (error) { setMessage(error.message); }
   };
-
-  const updateShopkeeperStatus = async (orderId, status) => {
-    try {
-      await apiFetch(`/api/order/${orderId}/shopkeeper-status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status })
-      });
-      await loadShopkeeperOrders();
-    } catch (error) {
-      setMessage(error.message);
-    }
-  };
-
-  const renderOrderCard = (order, mode) => (
-    <article className="order-card" key={order._id}>
-      <div>
-        <p className="eyebrow">Order #{order._id.slice(-6)}</p>
-        <h3>Rs. {order.totalAmount}</h3>
-        <p>{order.address}</p>
-        <p>Payment: {order.paymentStatus} | Status: {order.status}</p>
-        {order.shopName ? <p>Shop: {order.shopName}</p> : <p>Shop: Not accepted yet</p>}
-      </div>
-      <div className="order-items">
-        {order.items?.map((item) => (
-          <span key={`${order._id}-${item.foodId}-${item.name}`}>
-            {item.name} x {item.quantity}
-          </span>
-        ))}
-      </div>
-      {mode === "shopkeeper" ? (
-        <div className="actions">
-          {!order.shopkeeperId ? (
-            <button onClick={() => acceptOrder(order._id)}>Accept Order</button>
-          ) : (
-            <select value={order.status} onChange={(event) => updateShopkeeperStatus(order._id, event.target.value)}>
-              {shopkeeperStatuses.map((status) => (
-                <option value={status} key={status}>{status}</option>
-              ))}
-            </select>
-          )}
-        </div>
-      ) : (
-        <select value={order.status} onChange={(event) => updateAdminStatus(order._id, event.target.value)}>
-          {orderStatuses.map((status) => (
-            <option value={status} key={status}>{status}</option>
-          ))}
-        </select>
-      )}
-    </article>
-  );
 
   return (
     <main className="dashboard">
       <section className="hero-panel">
-        <p className="eyebrow">Operations</p>
-        <h1>Manage users, shopkeepers, food and delivery flow</h1>
-        <p>Shopkeepers can accept incoming orders, prepare them and update delivery status. Admins can see the full system.</p>
-        <button onClick={refresh}>{isLoading ? "Refreshing..." : "Refresh dashboard"}</button>
+        <p className="eyebrow">Admin Panel</p>
+        <h1>GharSeBite Admin Dashboard</h1>
+        <p>Manage students, messes, menus and orders in your local marketplace.</p>
+        <button type="button" onClick={loadDashboard}>{isLoading ? "Refreshing..." : "Refresh dashboard"}</button>
       </section>
 
       {message ? <p className="message">{message}</p> : null}
 
       <nav className="tabs">
-        <button className={activeTab === "shopkeeper" ? "active" : ""} onClick={() => setActiveTab("shopkeeper")}>Shopkeeper Orders</button>
-        <button className={activeTab === "foods" ? "active" : ""} onClick={() => setActiveTab("foods")}>Food Menu</button>
-        <button className={activeTab === "admin" ? "active" : ""} onClick={() => setActiveTab("admin")}>Admin Orders</button>
-        <button className={activeTab === "roles" ? "active" : ""} onClick={() => setActiveTab("roles")}>Users & Roles</button>
+        <button className={activeTab === "overview" ? "active" : ""} onClick={() => setActiveTab("overview")}>Overview</button>
+        <button className={activeTab === "chefs" ? "active" : ""} onClick={() => setActiveTab("chefs")}>Chef Approval</button>
+        <button className={activeTab === "messes" ? "active" : ""} onClick={() => setActiveTab("messes")}>Messes</button>
+        <button className={activeTab === "menus" ? "active" : ""} onClick={() => setActiveTab("menus")}>Menus</button>
+        <button className={activeTab === "orders" ? "active" : ""} onClick={() => setActiveTab("orders")}>Order Monitoring</button>
       </nav>
 
-      {activeTab === "shopkeeper" && (
-        <section className="grid-list">
-          {shopkeeperOrders.map((order) => renderOrderCard(order, "shopkeeper"))}
-          {!shopkeeperOrders.length ? <p>No shopkeeper orders found.</p> : null}
-        </section>
-      )}
-
-      {activeTab === "foods" && (
-        <section className="food-layout">
-          <form className="panel" onSubmit={handleAddFood}>
-            <h2>Add shop food</h2>
-            <input name="shopName" value={foodForm.shopName} onChange={onFoodFieldChange} placeholder="Shop / kitchen name" />
-            <input name="name" value={foodForm.name} onChange={onFoodFieldChange} placeholder="Food name" required />
-            <input name="category" value={foodForm.category} onChange={onFoodFieldChange} placeholder="State or category" required />
-            <input name="price" value={foodForm.price} onChange={onFoodFieldChange} placeholder="Price" type="number" min="1" required />
-            <input name="image" value={foodForm.image} onChange={onFoodFieldChange} placeholder="Image URL optional" />
-            <textarea name="description" value={foodForm.description} onChange={onFoodFieldChange} placeholder="Description" rows="4" />
-            <button type="submit">Add Food</button>
-          </form>
-
-          <section className="grid-list">
-            {foods.map((food) => (
-              <article className="food-row" key={food._id}>
-                <div>
-                  <h3>{food.name}</h3>
-                  <p>{food.category} | Rs. {food.price}</p>
-                  <p>{food.shopName || "No shop assigned"}</p>
-                </div>
-                <button onClick={() => handleDeleteFood(food._id)}>Delete</button>
-              </article>
-            ))}
-          </section>
-        </section>
-      )}
-
-      {activeTab === "admin" && (
+      {activeTab === "overview" ? (
         <>
           <section className="stats">
-            {orderStatuses.map((status) => (
-              <span key={status}>{status}: {adminCounts[status] || 0}</span>
-            ))}
+            <article>
+              <span>Total orders</span>
+              <strong>{stats.totalOrders}</strong>
+            </article>
+            <article>
+              <span>Total revenue</span>
+              <strong>Rs. {stats.totalRevenue}</strong>
+            </article>
+            <article>
+              <span>Active chefs</span>
+              <strong>{stats.activeChefs}</strong>
+            </article>
+            <article>
+              <span>Pending approvals</span>
+              <strong>{stats.pendingMesses ?? pendingChefs}</strong>
+            </article>
+            <article><span>Active messes</span><strong>{stats.activeMesses ?? 0}</strong></article>
+            <article><span>Today's orders</span><strong>{stats.todaysOrders ?? 0}</strong></article>
+            <article><span>Today's gross order value</span><strong>Rs. {stats.todayGrossOrderValue ?? 0}</strong></article>
           </section>
-          <section className="grid-list">
-            {adminOrders.map((order) => renderOrderCard(order, "admin"))}
-            {!adminOrders.length ? <p>No admin orders found or this account is shopkeeper-only.</p> : null}
+
+          <section className="two-column">
+            <div className="panel">
+              <h2>Latest orders</h2>
+              <div className="mini-list">
+                {orders.slice(0, 5).map((order) => (
+                  <div className="mini-row" key={order._id}>
+                    <span>#{order._id.slice(-6)} · {order.status}</span>
+                    <strong>Rs. {order.totalAmount}</strong>
+                  </div>
+                ))}
+                {!orders.length ? <p>No orders yet.</p> : null}
+              </div>
+            </div>
+
+            <div className="panel">
+              <h2>Chef queue</h2>
+              <div className="mini-list">
+                {chefs.slice(0, 5).map((chef) => (
+                  <div className="mini-row" key={chef.id}>
+                    <span>{chef.name}</span>
+                    <StatusBadge status={chef.approvalStatus} type="approval" />
+                  </div>
+                ))}
+                {!chefs.length ? <p>No chef accounts found.</p> : null}
+              </div>
+            </div>
           </section>
         </>
-      )}
+      ) : null}
 
-      {activeTab === "roles" && (
-        <section className="panel">
-          <h2>Users and shopkeepers</h2>
-          <p>Customers sign in from the main frontend. Shopkeepers sign in here and must be added to <strong>SHOPKEEPER_EMAILS</strong> on the backend environment. Admins are controlled by <strong>ADMIN_EMAILS</strong>.</p>
-          <p>This keeps roles simple while using your existing Clerk authentication.</p>
+      {activeTab === "chefs" ? (
+        <section className="grid-list">
+          {isLoading ? <p className="loading-text">Loading chefs...</p> : null}
+          {!isLoading && !chefs.length ? <EmptyState title="No chefs found" message="Chef accounts with role metadata will appear here." /> : null}
+          {chefs.map((chef) => (
+            <article className="food-row" key={chef.id}>
+              <div>
+                <h3>{chef.name}</h3>
+                <p>{chef.email || "No email"} · <StatusBadge status={chef.approvalStatus} type="approval" /></p>
+              </div>
+              <div className="button-row">
+                <button type="button" disabled={chef.approvalStatus === "approved"} onClick={() => handleChefAction(chef.id, "approve")}>
+                  Approve
+                </button>
+                <button type="button" className="danger-button" disabled={chef.approvalStatus === "rejected"} onClick={() => handleChefAction(chef.id, "reject")}>
+                  Reject
+                </button>
+              </div>
+            </article>
+          ))}
         </section>
-      )}
+      ) : null}
+
+      {activeTab === "messes" ? <section className="grid-list">
+        {!isLoading && !messes.length ? <EmptyState title="No messes found" message="New mess registrations will appear here." /> : null}
+        {messes.map((mess) => <article className="food-row" key={mess._id}><div><h3>{mess.name}</h3><p>{mess.area} · {mess.address} · {mess.phone || "No phone"}</p><StatusBadge status={mess.approvalStatus} type="approval" /></div><div className="button-row"><button disabled={mess.approvalStatus === "approved"} onClick={() => handleMessStatus(mess, "approved")}>Approve</button><button className="danger-button" disabled={mess.approvalStatus === "suspended"} onClick={() => handleMessStatus(mess, "suspended")}>Suspend</button><button className="danger-button" disabled={mess.approvalStatus === "rejected"} onClick={() => handleMessStatus(mess, "rejected")}>Reject</button></div></article>)}
+      </section> : null}
+
+      {activeTab === "menus" ? <section className="grid-list">
+        {!isLoading && !menus.length ? <EmptyState title="No menus found" message="Owner-published menus will appear here." /> : null}
+        {menus.map((menu) => <article className="food-row" key={menu._id}><div><h3>{menu.messId?.name || "Unknown mess"} · {menu.mealType}</h3><p>{menu.items?.map((item) => item.name).join(", ")} · Rs. {menu.price} · {new Date(menu.date).toLocaleDateString()}</p><StatusBadge status={menu.isAvailable ? "approved" : "rejected"} type="approval" /></div><div className="button-row"><button className={menu.isAvailable ? "danger-button" : ""} onClick={() => handleMenuModeration(menu)}>{menu.isAvailable ? "Hide menu" : "Restore menu"}</button></div></article>)}
+      </section> : null}
+
+      {activeTab === "orders" ? (
+        <section className="dashboard">
+          <div className="filters">
+            <label>
+              Status
+              <select value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}>
+                {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </label>
+            <label>
+              Payment
+              <select value={filters.paymentStatus} onChange={(event) => setFilters((prev) => ({ ...prev, paymentStatus: event.target.value }))}>
+                {paymentOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </label>
+          </div>
+          <OrderTable orders={filteredOrders} isLoading={isLoading} onStatusChange={handleOrderStatus} showChef />
+        </section>
+      ) : null}
     </main>
   );
 };
