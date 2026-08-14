@@ -1,5 +1,13 @@
-node_modules
-# Keep environment variables out of version control
-.env
+node_modules/
 
-/generated/prisma
+# Environment variables
+.env
+.env.*
+
+# Generated Prisma files
+/generated/prisma/
+
+# AI/editor tooling
+.agents/
+.claude/
+.windsurf/
