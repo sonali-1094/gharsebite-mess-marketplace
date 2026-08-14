@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  user
+  shopkeeper
+  chef
+  admin
+}
+
+enum UserApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum MessApprovalStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  SNACKS
+  DINNER
+}
+
+enum DietaryType {
+  VEG
+  JAIN
+  NON_VEG
+}
+
+enum OrderType {
+  PICKUP
+  DELIVERY
+}
+
+enum OrderStatus {
+  Pending
+  Accepted
+  Preparing
+  ReadyForPickup
+  OutForDelivery
+  Delivered
+  Completed
+  Cancelled
+  Rejected
+}
+
+enum PaymentStatus {
+  Pending
+  Processing
+  Paid
+  Failed
+}
+
+enum PaymentMethod {
+  COD
+  CARD
+  UPI
+  NET_BANKING
+  RAZORPAY
+}
+
+model User {
+  id             String             @id
+  name           String
+  email          String             @unique
+  password       String?
+  role           UserRole           @default(user)
+  approvalStatus UserApprovalStatus @default(pending)
+
+  ownedMesses Mess[]     @relation("MessOwner")
+  orders      Order[]
+  reviews     Review[]
+  favorites   Favorite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Area {
+  id       String  @id @default(uuid())
+  name     String  @unique
+  isActive Boolean @default(true)
+
+  messes Mess[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("areas")
+}
+
+model Mess {
+  id          String  @id @default(uuid())
+  ownerId     String
+  name        String
+  description String  @default("")
+  address     String
+  areaId      String?
+
+  latitude      Float?
+  longitude     Float?
+  serviceRadius Float  @default(3)
+  phone         String @default("")
+  coverImage    String @default("")
+  rating        Float  @default(0)
+  reviewCount   Int    @default(0)
+
+  deliveryAvailable Boolean @default(false)
+  pickupAvailable   Boolean @default(true)
+  deliveryCharge    Decimal @default(0)
+  openingTime       String  @default("07:00")
+  closingTime       String  @default("22:00")
+
+  approvalStatus MessApprovalStatus @default(pending)
+
+  owner User  @relation("MessOwner", fields: [ownerId], references: [id])
+  area  Area? @relation(fields: [areaId], references: [id])
+
+  menus     Menu[]
+  orders    Order[]
+  reviews   Review[]
+  favorites Favorite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([areaId])
+  @@index([approvalStatus])
+  @@map("messes")
+}
+
+model Menu {
+  id                String      @id @default(uuid())
+  messId            String
+  date              DateTime
+  mealType          MealType
+  price             Decimal
+  availableQuantity Int
+  isAvailable       Boolean     @default(true)
+  dietaryType       DietaryType @default(VEG)
+  pickupAvailable   Boolean     @default(true)
+  deliveryAvailable Boolean     @default(false)
+
+  mess  Mess       @relation(fields: [messId], references: [id], onDelete: Cascade)
+  items MenuItem[]
+  orderItems OrderItem[] @relation("OrderItemMenu")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([messId, date, mealType])
+  @@index([messId])
+  @@index([date])
+  @@map("menus")
+}
+
+model MenuItem {
+  id          String      @id @default(uuid())
+  menuId      String
+  name        String
+  description String      @default("")
+  category    String      @default("Meal")
+  dietaryType DietaryType @default(VEG)
+
+  menu       Menu        @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([menuId])
+  @@map("menu_items")
+}
+
+model Food {
+  id           String   @id @default(uuid())
+  name         String
+  price        Decimal
+  category     String
+  image        String?
+  description  String?
+  cuisine      String   @default("")
+  tags         String[]
+  chefId       String   @default("")
+  chefName     String   @default("")
+  shopkeeperId String   @default("")
+  shopName     String   @default("")
+  isTodayMenu  Boolean  @default(true)
+
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([chefId])
+  @@index([shopkeeperId])
+  @@map("foods")
+}
+
+model Order {
+  id     String  @id @default(uuid())
+  userId String
+  messId String?
+
+  orderType      OrderType @default(DELIVERY)
+  totalAmount    Decimal
+  deliveryCharge Decimal   @default(0)
+  address        String
+
+  status OrderStatus @default(Pending)
+
+  shopkeeperId String @default("")
+  chefId       String @default("")
+  shopName     String @default("")
+  chefName     String @default("")
+
+  paymentStatus PaymentStatus @default(Pending)
+  paymentMethod PaymentMethod @default(COD)
+  paymentId     String        @default("")
+  paidAt        DateTime?
+
+  user  User        @relation(fields: [userId], references: [id])
+  mess  Mess?       @relation(fields: [messId], references: [id])
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([messId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String  @id @default(uuid())
+  orderId    String
+  menuId     String?
+  menuItemId String?
+  foodId     String?
+
+  name     String
+  price    Decimal
+  quantity Int
+
+  shopkeeperId String @default("")
+  chefId       String @default("")
+  shopName     String @default("")
+  chefName     String @default("")
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menu     Menu?      @relation("OrderItemMenu", fields: [menuId], references: [id])
+  menuItem MenuItem?  @relation(fields: [menuItemId], references: [id])
+  food     Food?      @relation(fields: [foodId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([menuId])
+  @@index([menuItemId])
+  @@index([foodId])
+  @@map("order_items")
+}
+
+model Review {
+  id      String @id @default(uuid())
+  userId  String
+  messId  String
+  orderId String
+  rating  Int
+  comment String @default("")
+
+  user User @relation(fields: [userId], references: [id])
+  mess Mess @relation(fields: [messId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, orderId])
+  @@index([messId])
+  @@map("reviews")
+}
+
+model Favorite {
+  id     String @id @default(uuid())
+  userId String
+  messId String
+
+  user User @relation(fields: [userId], references: [id])
+  mess Mess @relation(fields: [messId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, messId])
+  @@index([messId])
+  @@map("favorites")
+}

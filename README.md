@@ -1,4 +1,4 @@
-# GharSeBite (MERN + Clerk + Razorpay)
+# GharSeBite (React + Express + PostgreSQL + Clerk + Razorpay)
 
 Full-stack healthy Indian tiffin and home-food delivery project for hostellers, PG students, and people living away from home.
 
@@ -6,7 +6,7 @@ Built with:
 - React + Vite frontend
 - Separate React + Vite admin/chef app
 - Node.js + Express backend
-- MongoDB database
+- PostgreSQL database
 - Clerk authentication
 - Razorpay payment integration
 - Admin panel protection (email allowlist)
@@ -23,8 +23,8 @@ GharSeBite/
 ## Tech Stack
 
 - Frontend: React, React Router, Clerk (`@clerk/clerk-react`)
-- Backend: Express, Mongoose, Clerk (`@clerk/express`)
-- Database: MongoDB Atlas
+- Backend: Express, Prisma, Clerk (`@clerk/express`)
+- Database: PostgreSQL
 - Payments: Razorpay + webhook verification
 
 ## Features
@@ -57,7 +57,7 @@ This role-based architecture keeps responsibilities separated cleanly across the
 
 - Node.js 18+ (recommended latest LTS)
 - npm
-- MongoDB Atlas URI
+- PostgreSQL connection URL
 - Clerk app keys
 - Razorpay test keys
 
@@ -73,7 +73,7 @@ VITE_API_URL=http://localhost:5000
 ### `backend/.env`
 
 ```env
-MONGO_URI=mongodb+srv://...
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
 RAZORPAY_KEY_ID=rzp_test_xxxxxxxxx
 RAZORPAY_KEY_SECRET=xxxxxxxxx
 RAZORPAY_WEBHOOK_SECRET=whsec_xxxxxxxxx
@@ -216,9 +216,9 @@ Webhook signature uses `RAZORPAY_WEBHOOK_SECRET`.
 - Verify backend `.env` has key ID/secret.
 - Restart backend.
 
-### 4) Mongo connection errors
-- Verify `MONGO_URI`.
-- Check Atlas network access and credentials.
+### 4) PostgreSQL connection errors
+- Verify `DATABASE_URL`.
+- Check database network access and credentials.
 
 ## Security Reminders
 

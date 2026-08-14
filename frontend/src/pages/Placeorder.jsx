@@ -40,12 +40,12 @@ const collapseRepeatedMessage = (message = "") => {
 const getApiErrorMessage = (data, fallback, paymentMethod = "RAZORPAY") => {
   const message = collapseRepeatedMessage(data?.message || data?.error || fallback);
 
-  if (/buffering timed out|orders\.insertOne|server selection|not connected|Database is not connected/i.test(message)) {
+  if (/database is not connected|database connection|postgresql connection/i.test(message)) {
     if (paymentMethod === "COD") {
       return "Cash on Delivery needs the updated local backend. Restart the backend and try once more.";
     }
 
-    return "Online payment needs MongoDB connected. Start MongoDB or fix the backend database connection, then try Razorpay again.";
+    return "Online payment needs the database available. Check the backend database connection, then try Razorpay again.";
   }
 
   if (/Cast to ObjectId failed/i.test(message)) {
@@ -62,8 +62,8 @@ const assertDatabaseReadyForRazorpay = async () => {
   }
 
   const health = await response.json();
-  if (!health.dbConnected) {
-    throw new Error("Online payment needs MongoDB connected. Start MongoDB or fix the backend database connection, then try Razorpay again.");
+  if (!health.dbConnected || health.database !== "PostgreSQL") {
+    throw new Error("Online payment needs the PostgreSQL database available. Check the backend connection, then try Razorpay again.");
   }
 };
 
@@ -169,7 +169,7 @@ const Placeorder = () => {
         clearCart();
         setOrderedMessage(
           orderData.localOnly
-            ? "Ordered successfully. Cash on Delivery order is saved locally because MongoDB is temporarily unavailable."
+            ? "Ordered successfully. Cash on Delivery order is saved locally because the database is temporarily unavailable."
             : "Ordered successfully. Cash on Delivery is confirmed."
         );
         setIsProcessing(false);

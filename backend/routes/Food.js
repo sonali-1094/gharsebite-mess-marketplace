@@ -1,9 +1,10 @@
 import express from "express";
-import Food from "../models/Food.js";
+import prisma from "../lib/prisma.js";
 import { requireClerkAuth } from "../middleware/clerkAuth.js";
 import { requireChefOrAdmin, requireShopkeeperOrAdmin } from "../middleware/roleAuth.js";
 
 const router = express.Router();
+const serializeFood = ({ id, ...food }) => ({ _id: id, ...food });
 
 router.post("/add", requireClerkAuth, requireShopkeeperOrAdmin, async (req, res) => {
   try {
@@ -14,15 +15,17 @@ router.post("/add", requireClerkAuth, requireShopkeeperOrAdmin, async (req, res)
           .map((tag) => tag.trim())
           .filter(Boolean);
 
-    const food = await Food.create({
+    const food = await prisma.food.create({
+      data: {
       ...req.body,
       tags,
       chefId: req.body.chefId || req.auth.userId,
       chefName: req.body.chefName || req.body.shopName || req.staffEmail || "",
       shopkeeperId: req.body.shopkeeperId || req.auth.userId,
       shopName: req.body.shopName || req.body.chefName || req.staffEmail || ""
+      }
     });
-    res.status(201).json(food);
+    res.status(201).json(serializeFood(food));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -30,8 +33,8 @@ router.post("/add", requireClerkAuth, requireShopkeeperOrAdmin, async (req, res)
 
 router.get("/", async (req, res) => {
   try {
-    const foods = await Food.find();
-    res.json(foods);
+    const foods = await prisma.food.findMany();
+    res.json(foods.map(serializeFood));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -39,13 +42,16 @@ router.get("/", async (req, res) => {
 
 router.get("/mine", requireClerkAuth, requireChefOrAdmin, async (req, res) => {
   try {
-    const foods = await Food.find({
-      $or: [
-        { chefId: req.auth.userId },
-        { shopkeeperId: req.auth.userId }
-      ]
-    }).sort({ createdAt: -1 });
-    res.json(foods);
+    const foods = await prisma.food.findMany({
+      where: {
+        OR: [
+          { chefId: req.auth.userId },
+          { shopkeeperId: req.auth.userId }
+        ]
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(foods.map(serializeFood));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -53,7 +59,7 @@ router.get("/mine", requireClerkAuth, requireChefOrAdmin, async (req, res) => {
 
 router.delete("/:id", requireClerkAuth, requireShopkeeperOrAdmin, async (req, res) => {
   try {
-    const food = await Food.findById(req.params.id);
+    const food = await prisma.food.findUnique({ where: { id: req.params.id } });
     if (!food) {
       return res.status(404).json({ message: "Food not found" });
     }
@@ -62,7 +68,7 @@ router.delete("/:id", requireClerkAuth, requireShopkeeperOrAdmin, async (req, re
       return res.status(403).json({ message: "You can delete only your own food items" });
     }
 
-    await food.deleteOne();
+    await prisma.food.delete({ where: { id: food.id } });
     return res.json({ message: "Food deleted successfully" });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -71,7 +77,7 @@ router.delete("/:id", requireClerkAuth, requireShopkeeperOrAdmin, async (req, re
 
 router.patch("/:id", requireClerkAuth, requireShopkeeperOrAdmin, async (req, res) => {
   try {
-    const food = await Food.findById(req.params.id);
+    const food = await prisma.food.findUnique({ where: { id: req.params.id } });
     if (!food) {
       return res.status(404).json({ message: "Food not found" });
     }
@@ -88,9 +94,11 @@ router.patch("/:id", requireClerkAuth, requireShopkeeperOrAdmin, async (req, res
         .filter(Boolean);
     }
 
-    Object.assign(food, updates);
-    await food.save();
-    return res.json(food);
+    const updatedFood = await prisma.food.update({
+      where: { id: food.id },
+      data: updates
+    });
+    return res.json(serializeFood(updatedFood));
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
